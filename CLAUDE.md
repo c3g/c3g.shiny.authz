@@ -70,5 +70,9 @@ devtools::test()       # run the testthat suite
 devtools::check()      # full R CMD check
 ```
 
-(No CI workflow yet -- see repo TODOs / issues. Licensed GPL-3, matching `project_tracking`
+CI (`.github/workflows/R-CMD-check.yml`) runs `R CMD check` (without `--as-cran`; this
+package isn't headed for CRAN) and fails on any warning. Commit the regenerated `man/` after
+`devtools::document()`, or the check warns about undocumented exports.
+
+(Licensed GPL-3, matching `project_tracking`
 and `project_tracking_cli` -- see `LICENSE`.)
