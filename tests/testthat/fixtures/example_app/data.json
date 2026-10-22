@@ -1,0 +1,6 @@
+{
+  "actions": {
+    "view_dataset": ["example-viewers", "example-editors"],
+    "export_dataset": ["example-editors"]
+  }
+}
