@@ -1,19 +1,91 @@
-test_that("c3g_require_authz fails closed when OPA is unreachable", {
-  session <- list(request = list(HTTP_X_FORWARDED_GROUPS = "admins"))
-
-  # Port 1 is a reserved, unassigned port -- nothing should be listening there, so this
-  # exercises the fail-closed (network error -> deny) path rather than a real OPA answer.
-  # We only assert that *something* stops execution here (deny), not which exact condition
-  # class does it -- shiny::showNotification()/shiny::req() both require a reactive/session
-  # context this unit test doesn't have, which is itself a reason execution won't proceed.
-  expect_error(
-    suppressWarnings(
-      c3g_require_authz("export_dataset", session, opa_url = "http://127.0.0.1:1")
-    )
+# A stand-in for a Shiny session: carries the forwarded-groups header like oauth2-proxy would,
+# and records notifications instead of sending them to a browser.
+fake_session <- function(groups_header = NULL) {
+  sent <- new.env()
+  sent$notifications <- list()
+  list(
+    request = list(HTTP_X_FORWARDED_GROUPS = groups_header),
+    sendNotification = function(type, message) {
+      sent$notifications[[length(sent$notifications) + 1]] <- message
+    },
+    sent = sent
   )
+}
+
+expect_denied <- function(session, ...) {
+  expect_error(c3g_require_authz(session = session, ...), class = "shiny.silent.error")
+  expect_length(session$sent$notifications, 1)
+  expect_equal(session$sent$notifications[[1]]$type, "error")
+}
+
+POLICY <- "example_app/authz/allow"
+
+# --- Without OPA -------------------------------------------------------------------------------
+
+test_that("a missing or empty policy_path is a loud error, not a silent deny", {
+  session <- fake_session("example-editors")
+  expect_error(c3g_require_authz("export_dataset", session), "policy_path")
+  expect_error(c3g_require_authz("export_dataset", session, policy_path = ""), "policy_path")
+  expect_error(c3g_require_authz("export_dataset", session, policy_path = "/"), "policy_path")
+  expect_length(session$sent$notifications, 0)
 })
 
-# NOTE: there is deliberately no test here for the "OPA reachable and returns allow/deny"
-# path -- that needs a running OPA server (or an httr2 mock) and hasn't been wired up yet.
-# See CLAUDE.md's "What's actually verified" section before assuming this function has been
-# exercised against a real policy.
+test_that("c3g_require_authz fails closed when OPA is unreachable", {
+  # Port 1 is reserved and unassigned -- nothing listens there, so the connection is refused.
+  expect_denied(fake_session("example-editors"), action = "export_dataset",
+                policy_path = POLICY, opa_url = "http://127.0.0.1:1")
+})
+
+test_that("c3g_require_authz fails closed, and quickly, when OPA never answers", {
+  # A listening socket that never accepts: the TCP connection opens, the request goes out,
+  # and no response ever comes back -- the same as a hung OPA.
+  port <- free_port()
+  listener <- serverSocket(port)
+  on.exit(close(listener), add = TRUE)
+
+  started <- Sys.time()
+  expect_denied(fake_session("example-editors"), action = "export_dataset",
+                policy_path = POLICY, opa_url = paste0("http://127.0.0.1:", port),
+                timeout = 0.5)
+  expect_lt(as.numeric(difftime(Sys.time(), started, units = "secs")), 5)
+})
+
+# --- Against a real OPA server -----------------------------------------------------------------
+
+test_that("allows an action the user's group may perform", {
+  opa <- local_opa_server()
+  session <- fake_session("example-viewers, example-editors")
+  expect_true(c3g_require_authz("export_dataset", session, POLICY, opa_url = opa))
+  expect_length(session$sent$notifications, 0)
+})
+
+test_that("denies an action the user's groups may not perform", {
+  opa <- local_opa_server()
+  expect_denied(fake_session("example-viewers"), action = "export_dataset",
+                policy_path = POLICY, opa_url = opa)
+})
+
+test_that("denies when the forwarded-groups header is absent", {
+  opa <- local_opa_server()
+  expect_denied(fake_session(NULL), action = "view_dataset", policy_path = POLICY,
+                opa_url = opa)
+})
+
+test_that("denies an action the policy doesn't know", {
+  opa <- local_opa_server()
+  expect_denied(fake_session("example-editors"), action = "delete_everything",
+                policy_path = POLICY, opa_url = opa)
+})
+
+test_that("denies when policy_path names a rule that doesn't exist", {
+  opa <- local_opa_server()
+  expect_denied(fake_session("example-editors"), action = "export_dataset",
+                policy_path = "other_app/authz/allow", opa_url = opa)
+})
+
+test_that("tolerates leading and trailing slashes in policy_path", {
+  opa <- local_opa_server()
+  session <- fake_session("example-editors")
+  expect_true(c3g_require_authz("export_dataset", session, "/example_app/authz/allow/",
+                                opa_url = opa))
+})

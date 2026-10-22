@@ -7,7 +7,9 @@
 c3g_require_authz(
   action,
   session,
-  opa_url = Sys.getenv("C3G_OPA_URL", "http://10.0.2.2:8181")
+  policy_path,
+  opa_url = Sys.getenv("C3G_OPA_URL", "http://10.0.2.2:8181"),
+  timeout = 2
 )
 }
 \arguments{
@@ -17,9 +19,18 @@ Must match whatever the app's Rego policy (in \code{c3g-opa-policies}) expects a
 
 \item{session}{The current Shiny session, as passed into the server function.}
 
+\item{policy_path}{The rule to query, as a slash-separated path: the Rego package and rule
+name with dots replaced by slashes. E.g. package \code{my_app.authz}, rule \code{allow}, becomes
+\code{"my_app/authz/allow"}. Each app's policy lives under its own package in
+\code{c3g-opa-policies}, so there is no default.}
+
 \item{opa_url}{Base URL of the app's local OPA sidecar. Defaults to the \code{C3G_OPA_URL}
 environment variable, falling back to \verb{http://10.0.2.2:8181} -- the host-loopback address
 used throughout \code{web-app-template}'s deployment docs.}
+
+\item{timeout}{Seconds to wait for OPA before treating the call as failed (and therefore
+denied). Keep it short: a Shiny process is single-threaded, so a hanging call freezes the
+app for every user, not just this one.}
 }
 \value{
 Invisibly, \code{TRUE} if authorized. Does not return on deny -- stops execution instead
@@ -29,14 +40,14 @@ Invisibly, \code{TRUE} if authorized. Does not return on deny -- stops execution
 Call this at the top of a guarded \code{observeEvent()}/\code{downloadHandler()}. Builds an
 \verb{\{action, groups\}} payload -- Shiny apps are single-page, so there's no route to key a
 decision off, just a named action -- and calls the app's local OPA sidecar. \strong{Fails
-closed}: any error reaching OPA (network failure, non-2xx response, malformed body) is
-treated as a deny, never silently allowed. On deny, execution stops (via \code{shiny::req}) and
-the user is notified -- the calling code never runs.
+closed}: any error reaching OPA (network failure, timeout, non-2xx response, malformed
+body, undefined rule) is treated as a deny, never silently allowed. On deny, the user is
+notified and execution stops (via \code{shiny::req}) -- the calling code never runs.
 }
 \examples{
 \dontrun{
 observeEvent(input$export_btn, {
-  c3g_require_authz("export_dataset", session)
+  c3g_require_authz("export_dataset", session, policy_path = "my_app/authz/allow")
   # ... proceed with the export; unreached if the call above denied
 })
 }
