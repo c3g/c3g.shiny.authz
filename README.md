@@ -59,8 +59,8 @@ replaced by slashes (package `my_app.authz`, rule `allow` → `"my_app/authz/all
 default, since every app's policy lives under its own package.
 
 By default, `c3g_require_authz()` calls the OPA sidecar at the `C3G_OPA_URL` environment
-variable, falling back to `http://10.0.2.2:8181` -- the host-loopback address used throughout
-`web-app-template`'s deployment docs for reaching a container's local sidecar. It gives up
+variable, falling back to `http://127.0.0.1:8181` -- OPA runs in the app's own podman pod, per
+`web-app-template`'s deployment docs, so the app reaches it on the pod's loopback. It gives up
 after 2 seconds (`timeout`) and denies: a Shiny process is single-threaded, so a hung OPA call
 would otherwise freeze the app for every user.
 

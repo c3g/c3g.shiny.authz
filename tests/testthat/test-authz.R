@@ -89,3 +89,10 @@ test_that("tolerates leading and trailing slashes in policy_path", {
   expect_true(c3g_require_authz("export_dataset", session, "/example_app/authz/allow/",
                                 opa_url = opa))
 })
+
+test_that("opa_url defaults to the OPA sidecar in the app's own pod", {
+  withr::local_envvar(C3G_OPA_URL = NA)
+  expect_equal(eval(formals(c3g_require_authz)$opa_url), "http://127.0.0.1:8181")
+  withr::local_envvar(C3G_OPA_URL = "http://opa.example:9999")
+  expect_equal(eval(formals(c3g_require_authz)$opa_url), "http://opa.example:9999")
+})

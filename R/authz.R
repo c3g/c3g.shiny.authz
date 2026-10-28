@@ -16,8 +16,8 @@
 #'   `"my_app/authz/allow"`. Each app's policy lives under its own package in
 #'   `c3g-opa-policies`, so there is no default.
 #' @param opa_url Base URL of the app's local OPA sidecar. Defaults to the `C3G_OPA_URL`
-#'   environment variable, falling back to `http://10.0.2.2:8181` -- the host-loopback address
-#'   used throughout `web-app-template`'s deployment docs.
+#'   environment variable, falling back to `http://127.0.0.1:8181` -- OPA runs in the app's own
+#'   podman pod, per `web-app-template`'s deployment docs.
 #' @param timeout Seconds to wait for OPA before treating the call as failed (and therefore
 #'   denied). Keep it short: a Shiny process is single-threaded, so a hanging call freezes the
 #'   app for every user, not just this one.
@@ -37,7 +37,7 @@
 c3g_require_authz <- function(action,
                               session,
                               policy_path,
-                              opa_url = Sys.getenv("C3G_OPA_URL", "http://10.0.2.2:8181"),
+                              opa_url = Sys.getenv("C3G_OPA_URL", "http://127.0.0.1:8181"),
                               timeout = 2) {
   # A missing policy path is a programming error, not a deny: fail loudly so it's caught the
   # first time the app runs, rather than looking like every user lacks permission.

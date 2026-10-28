@@ -1,6 +1,6 @@
 Package: c3g.shiny.authz
 Title: Authentication and Authorization Helpers for C3G Shiny Apps
-Version: 0.1.0
+Version: 0.2.0
 Authors@R: person("Paul", "Stretenowich", email = "paul.stretenowich@mcgill.ca", role = c("aut", "cre"))
 Description: Helpers for C3G Shiny apps running behind oauth2-proxy: reading the
     forwarded-groups header for cosmetic Tier 2 UI (c3g_groups()), and calling a per-app
