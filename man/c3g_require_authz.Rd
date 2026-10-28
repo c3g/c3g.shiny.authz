@@ -8,7 +8,7 @@ c3g_require_authz(
   action,
   session,
   policy_path,
-  opa_url = Sys.getenv("C3G_OPA_URL", "http://10.0.2.2:8181"),
+  opa_url = Sys.getenv("C3G_OPA_URL", "http://127.0.0.1:8181"),
   timeout = 2
 )
 }
@@ -25,8 +25,8 @@ name with dots replaced by slashes. E.g. package \code{my_app.authz}, rule \code
 \code{c3g-opa-policies}, so there is no default.}
 
 \item{opa_url}{Base URL of the app's local OPA sidecar. Defaults to the \code{C3G_OPA_URL}
-environment variable, falling back to \verb{http://10.0.2.2:8181} -- the host-loopback address
-used throughout \code{web-app-template}'s deployment docs.}
+environment variable, falling back to \verb{http://127.0.0.1:8181} -- OPA runs in the app's own
+podman pod, per \code{web-app-template}'s deployment docs.}
 
 \item{timeout}{Seconds to wait for OPA before treating the call as failed (and therefore
 denied). Keep it short: a Shiny process is single-threaded, so a hanging call freezes the
